@@ -155,12 +155,12 @@ pub fn run() {
     println!("run_day1");
 
     println!(
-        "case 1 with input {} result: {}",
+        "day 1 case 1 with input {} result: {}",
         input,
         day1(input, &words_1)
     );
     println!(
-        "case 2 with input {} result: {}",
+        "day 1 case 2 with input {} result: {}",
         input,
         day1(input, &words_2)
     );
