@@ -1,0 +1,25 @@
+https://adventofcode.com/2023/day/10
+
+# Part one
+
+In this example, the farthest point from the start is 4 steps away.
+
+Here's the more complex loop again:
+
+..F7.
+.FJ|.
+SJ.L7
+|F--J
+LJ...
+
+Here are the distances for each tile on that loop:
+
+..45.
+.236.
+01.78
+14567
+23...
+
+Find the single giant loop starting at S. How many steps along the
+loop does it take to get from the starting position to the point
+farthest from the starting position?
