@@ -1,4 +1,5 @@
 use crate::utils::input_process::input_to_lines;
+use std::collections::HashMap;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum Mode {
@@ -7,7 +8,7 @@ enum Mode {
 }
 
 // No one will even see that horror.
-fn transpose(pattern: &Vec<String>) -> Vec<String> {
+fn transpose(pattern: &[String]) -> Vec<String> {
     let width = pattern.first().expect("Err: no line").len();
     let height = pattern.len();
     let mut transposed: Vec<String> = vec![String::new(); width];
@@ -20,27 +21,22 @@ fn transpose(pattern: &Vec<String>) -> Vec<String> {
     transposed
 }
 
-fn equal(left: &str, right: &str) -> bool {
-    !left.chars().zip(right.chars().rev()).any(|(l, r)| l != r)
+fn differences(left: &str, right: &str) -> usize {
+    left.chars()
+        .zip(right.chars().rev())
+        .map(|(l, r)| if l != r { 1_usize } else { 0_usize })
+        .sum()
 }
 
-fn scan_line(line: &String) -> Vec<usize> {
-    let len = line.len();
-    (1..len).filter_map(|i| check_idx(line, i, len)).collect()
-}
-
-fn check_idx(line: &String, i: usize, len: usize) -> Option<usize> {
+fn check_idx(line: &str, i: usize, len: usize) -> usize {
     let span_leng = i.min(len - i);
     let left_span = &line[(i - span_leng)..i];
     let right_span = &line[i..(i + span_leng)];
-    if equal(left_span, right_span) {
-        return Some(i);
-    }
-    None
+    differences(left_span, right_span)
 }
 
-fn process_pattern(pattern: &Vec<String>, mode: Mode) -> Option<usize> {
-    let mut pattern = pattern.clone();
+fn process_pattern(pattern: &[String], mode: Mode) -> Option<usize> {
+    let mut pattern = Vec::from(pattern);
     if mode == Mode::Transposed {
         pattern = transpose(&pattern);
     }
@@ -48,17 +44,17 @@ fn process_pattern(pattern: &Vec<String>, mode: Mode) -> Option<usize> {
     let line = pattern.first().expect("Err: no line");
     let len = line.len();
 
-    let mut indices = scan_line(line);
+    // let mut indices = scan_line(line);
+    let mut hits: HashMap<usize, usize> = HashMap::new();
 
     for line in pattern.iter() {
-        indices = indices
-            .into_iter()
-            .filter_map(|idx| check_idx(line, idx, len))
-            .collect();
-        println!("{:?}", indices);
+        for idx in 0..line.len() {
+            *hits.entry(idx).or_insert(0) += check_idx(line, idx, len);
+        }
     }
 
-    let mut indice = *indices.first()?;
+    hits.retain(|_key, value| value == &1);
+    let mut indice = *hits.keys().next()?;
 
     if mode == Mode::Transposed {
         indice *= 100;
@@ -90,8 +86,6 @@ fn process_lines(lines: &mut [String]) -> usize {
         .sum()
 }
 
-// This one took some de-uglification.
-// And still.
 pub fn run() {
     let input = "./days/day13/input.txt";
     let mut data = input_to_lines(input);
