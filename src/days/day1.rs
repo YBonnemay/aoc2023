@@ -99,8 +99,12 @@ fn get_first_match(line: &str, words: &[Word]) -> u32 {
     let findings: Vec<Position> = words
         .iter()
         .filter_map(|word| {
-            let Some(first) = line.find(word.word) else { return None };
-            let Some(last) = line.rfind(word.word) else { return None } ;
+            let Some(first) = line.find(word.word) else {
+                return None;
+            };
+            let Some(last) = line.rfind(word.word) else {
+                return None;
+            };
             Some(Position { first, last, word })
         })
         .collect();
