@@ -6,7 +6,9 @@ pub mod day10;
 pub mod day11;
 #[allow(dead_code)]
 pub mod day12;
+#[allow(dead_code)]
 pub mod day13;
+pub mod day14;
 #[allow(dead_code)]
 pub mod day2;
 #[allow(dead_code)]
