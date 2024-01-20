@@ -1,6 +1,6 @@
 #![feature(get_many_mut)]
-// #![feature(iter_intersperse)]
-
+#![feature(map_try_insert)]
+#[allow(unstable_name_collisions)]
 mod days;
 mod utils;
 

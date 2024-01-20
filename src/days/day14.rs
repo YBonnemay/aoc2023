@@ -1,9 +1,6 @@
-use itertools::Itertools;
-// use std::clone;
-
 use crate::utils::input_process::input_to_lines;
-
-type Zone<T> = dyn Iterator<Item = T>;
+use itertools::Itertools;
+use std::collections::HashMap;
 
 #[derive(Clone, Ord, Eq, PartialOrd, PartialEq, Debug, Copy)]
 enum TerrainId {
@@ -12,6 +9,7 @@ enum TerrainId {
     Fixed,
 }
 
+#[derive(Clone, Ord, Eq, PartialOrd, PartialEq)]
 enum Compass {
     North,
     South,
@@ -19,9 +17,15 @@ enum Compass {
     West,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy, Ord, Eq, PartialOrd, PartialEq)]
 struct Terrain {
     id: TerrainId,
+}
+
+#[derive(Debug)]
+struct ResultData {
+    index: usize,
+    value: usize,
 }
 
 impl Terrain {
@@ -43,25 +47,14 @@ impl Terrain {
     }
 }
 
-/// .
-///
-/// # Panics
-///
-/// Panics if .
-fn get_iterator<'a, T>(
-    direction: Compass,
-    zone: &'a Vec<Vec<T>>,
-    index: &'a usize,
-) -> impl Iterator<Item = &'a T> {
-    let width = zone.first().expect("Err: no firs row");
-    let height = zone.len();
+fn set_line<T: Copy>(direction: &Compass, zone: &mut [Vec<T>], index: &usize, update_line: &[T]) {
     match direction {
-        Compass::North => zone
-            .iter()
-            .map(|line| line.get(*index).expect("Err: no index")),
-        Compass::South => todo!(),
-        Compass::East => todo!(),
-        Compass::West => todo!(),
+        Compass::North | Compass::South => zone.iter_mut().enumerate().for_each(|(i, line)| {
+            line[*index] = *(update_line.get(i).expect("Err: no input index"));
+        }),
+        Compass::East | Compass::West => {
+            zone[*index] = update_line.to_vec();
+        }
     }
 }
 
@@ -72,80 +65,126 @@ fn get_zone(lines: &mut [String]) -> Vec<Vec<Terrain>> {
         .collect::<Vec<Vec<Terrain>>>()
 }
 
-fn sort_line<'a>(line: impl Iterator<Item = &'a Terrain>) -> Vec<&'a Terrain> {
+fn sort_line(direction: &Compass, line: Vec<Terrain>) -> Vec<Terrain> {
     let chunks_vec = line
-        .collect_vec()
         .split(|&terrain| terrain.id == TerrainId::Fixed)
         .map(|chunks| {
             let mut sortable_chunks = Vec::from(chunks);
-            sortable_chunks.sort_unstable_by_key(|sortable_chunks| sortable_chunks.id);
+            sortable_chunks.sort_unstable_by(|a, b| {
+                if *direction == Compass::North || *direction == Compass::West {
+                    a.partial_cmp(b).unwrap()
+                } else {
+                    b.partial_cmp(a).unwrap()
+                }
+            });
             sortable_chunks.to_vec()
         })
-        .intersperse(vec![&Terrain {
+        .intersperse(vec![Terrain {
             id: TerrainId::Fixed,
         }])
         .flatten()
-        .collect::<Vec<&Terrain>>();
+        .collect::<Vec<Terrain>>();
 
     chunks_vec
-    // intersperse(
-    //     chunks_vec,
-    //     vec![&Terrain {
-    //         id: TerrainId::Fixed,
-    //     }],
-    // )
-    // .flatten()
-    // .collect::<Vec<&Terrain>>();
+}
+
+fn compute_zone_result(zone: &[Vec<Terrain>]) -> usize {
+    let rates = (1..(zone.len() + 1)).rev();
+
+    zone.iter()
+        .zip(rates)
+        .map(|(line, rate)| {
+            line.iter()
+                .filter_map(|terrain| match terrain.id {
+                    TerrainId::Movable => Some(rate),
+                    _ => None,
+                })
+                .sum::<usize>()
+        })
+        .sum()
+}
+
+fn process_direction(direction: &Compass, zone_updated: &mut [Vec<Terrain>]) {
+    let width = zone_updated.first().expect("Err: no first").len();
+    let height = zone_updated.len();
+    let range = match direction {
+        Compass::North => 0..width,
+        Compass::South => 0..width,
+        Compass::East => 0..height,
+        Compass::West => 0..height,
+    };
+
+    range.for_each(|index| {
+        let line = if *direction == Compass::North || *direction == Compass::South {
+            zone_updated
+                .iter()
+                .map(|line| *line.get(index).expect("Err: no index"))
+                .collect_vec()
+        } else {
+            (*zone_updated.get(index).expect("Err: no index")).clone()
+        };
+
+        let sorted_line = sort_line(direction, line);
+        set_line(direction, zone_updated, &index, &sorted_line);
+    });
 }
 
 fn process_lines(lines: &mut [String]) -> usize {
-    let zone = get_zone(lines);
-    let width = zone.first().expect("Err: no first").len();
-    // zone
-    let mut result = 0;
-    for j in 0..width {
-        let line = get_iterator(Compass::North, &zone, &j);
-        // println!("{:?}", line);
-        let sorted_line = sort_line(line);
-        let rates = (1..(sorted_line.len() + 1)).rev();
-
-        for (terrain, rate) in sorted_line.iter().zip(rates) {
-            match terrain.id {
-                TerrainId::Movable => {
-                    result += rate;
-                }
-                _ => {}
+    let mut zone = get_zone(lines);
+    let mut results: HashMap<String, ResultData> = HashMap::new();
+    let end_value = 1000000000;
+    let mut index = 0;
+    for i in 0..end_value {
+        index = i;
+        for direction in [Compass::North, Compass::West, Compass::South, Compass::East] {
+            process_direction(&direction, &mut zone);
+        }
+        let value = compute_zone_result(&zone);
+        match results.try_insert(get_string(&zone), ResultData { index, value }) {
+            Ok(_) => {}
+            Err(_) => {
+                break;
             }
         }
     }
 
-    result
+    let cycle_start_index = results.get(&get_string(&zone)).expect("Err: no data").index;
+    let cycle_len = index - cycle_start_index;
+    let index_in_cycle = (end_value - cycle_start_index - 1) % cycle_len;
+
+    let index_result = results
+        .values()
+        .filter(|res| res.index == (index_in_cycle + cycle_start_index))
+        .collect_vec();
+
+    index_result[0].value
 }
 
+fn get_string(zone: &Vec<Vec<Terrain>>) -> String {
+    let mut line = "".to_string();
+    for terrains in zone {
+        line.push_str(
+            &terrains
+                .iter()
+                .map(|terrain| match terrain.id {
+                    TerrainId::Empty => '.',
+                    TerrainId::Fixed => '#',
+                    TerrainId::Movable => '0',
+                })
+                .collect::<String>(),
+        );
+        line.push('\n');
+    }
+    line
+}
+
+// In this episode, gratuitous templated fuckeries
+// Heroically clawed from the Compiler!
+// How sad that
+// They didn not help
 pub fn run() {
     let input = "./days/day14/input.txt";
     let mut data = input_to_lines(input);
     let result = process_lines(&mut data);
     println!("\n day14 done with result {result}.");
 }
-
-// fn sort_line<'a>(line: impl Iterator<Item = &'a Terrain>) -> () {
-//     let chunks_vec = line
-//         .collect_vec()
-//         .split(|&terrain| terrain.id == TerrainId::Fixed)
-//         .map(|chunks| {
-//             let mut sortable_chunks = Vec::from(chunks);
-//             sortable_chunks.sort_unstable_by_key(|sortable_chunks| sortable_chunks.id);
-//             sortable_chunks.to_vec()
-//         })
-//         .collect::<Vec<Vec<&Terrain>>>();
-
-//     intersperse(
-//         chunks_vec,
-//         vec![&Terrain {
-//             id: TerrainId::Fixed,
-//         }],
-//     )
-//     .flatten()
-//     .collect::<Vec<&Terrain>>();
-// }
