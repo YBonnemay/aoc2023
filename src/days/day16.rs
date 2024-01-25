@@ -157,31 +157,9 @@ fn get_place(i: usize, j: usize, map: &Map) -> Place {
     map.places[i][j].clone()
 }
 
-fn process_input(inputs: Vec<String>) -> usize {
-    let width = inputs.first().expect("Err: no input").len();
-    let height = inputs.len();
-
-    let places = inputs
-        .iter()
-        .enumerate()
-        .map(|(i, line)| {
-            line.chars()
-                .enumerate()
-                .map(|(j, ch)| Place::new(i, j, ch))
-                .collect_vec()
-        })
-        .collect_vec();
-
-    let map = Map {
-        places,
-        height,
-        width,
-    };
-    let mut starting_place = get_place(0, 0, &map).clone();
-    let starting_direction = Direction::East;
-
+fn process_start(starting_place: &Place, starting_direction: Direction, map: &Map) -> usize {
     let mut visited_places: HashSet<(usize, usize, Direction)> = HashSet::new();
-
+    let mut starting_place = (*starting_place).clone();
     starting_place.directions.push(starting_direction.clone());
     visited_places.insert((starting_place.i, starting_place.j, starting_direction));
 
@@ -190,7 +168,7 @@ fn process_input(inputs: Vec<String>) -> usize {
         let next_directions = place.get_new_directions();
         for direction in next_directions {
             if let Some(mut next_place) =
-                get_place_direction(place.i, place.j, &direction, &map).clone()
+                get_place_direction(place.i, place.j, &direction, map).clone()
             {
                 if visited_places.contains(&(next_place.i, next_place.j, direction.clone())) {
                     continue;
@@ -212,6 +190,52 @@ fn process_input(inputs: Vec<String>) -> usize {
     visited.len()
 }
 
+fn process_input(inputs: Vec<String>) -> usize {
+    let width = inputs.first().expect("Err: no input").len();
+    let height = inputs.len();
+
+    let places = inputs
+        .iter()
+        .enumerate()
+        .map(|(i, line)| {
+            line.chars()
+                .enumerate()
+                .map(|(j, ch)| Place::new(i, j, ch))
+                .collect_vec()
+        })
+        .collect_vec();
+
+    let map = Map {
+        places,
+        height,
+        width,
+    };
+
+    let mut results: Vec<usize> = Vec::new();
+    for j in 0..width {
+        let starting_place = get_place(0, j, &map).clone();
+        let starting_direction = Direction::South;
+        results.push(process_start(&starting_place, starting_direction, &map));
+
+        let starting_place = get_place(height - 1, j, &map).clone();
+        let starting_direction = Direction::North;
+        results.push(process_start(&starting_place, starting_direction, &map));
+    }
+
+    for i in 0..height {
+        let starting_place = get_place(i, 0, &map).clone();
+        let starting_direction = Direction::East;
+        results.push(process_start(&starting_place, starting_direction, &map));
+
+        let starting_place = get_place(i, width - 1, &map).clone();
+        let starting_direction = Direction::West;
+        results.push(process_start(&starting_place, starting_direction, &map));
+    }
+
+    *results.iter().max().expect("Err: no max")
+}
+
+// Yuck.
 pub fn run() {
     let input = "./days/day16/input.txt";
     let data = input_to_lines(input);
