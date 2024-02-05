@@ -5,10 +5,10 @@ use itertools::Itertools;
 
 fn get_direction(st: &str) -> Direction {
     match st {
-        "U" => Direction::Up,
-        "D" => Direction::Down,
-        "R" => Direction::Right,
-        "L" => Direction::Left,
+        "0" => Direction::Right,
+        "1" => Direction::Down,
+        "2" => Direction::Left,
+        "3" => Direction::Up,
         _ => panic!("Unknown Direction"),
     }
 }
@@ -20,26 +20,27 @@ enum Direction {
     Right,
     Left,
 }
+
+#[derive(Debug, Eq, PartialEq, PartialOrd, Clone, Hash, Copy)]
 struct Step {
     direction: Direction,
-    number: i32,
+    number: i64,
 }
 
 #[derive(Debug, Eq, PartialEq, PartialOrd, Clone, Hash, Copy)]
 struct Place {
-    i: i32,
-    j: i32,
+    i: i64,
+    j: i64,
 }
 
 fn line_to_step(line: &String) -> Step {
-    let step_line = line.split(' ').collect_vec();
-    Step {
-        direction: get_direction(step_line[0]),
-        number: step_line[1].parse::<i32>().expect("Could not parse number"),
-    }
+    let (_, hex_direction) = line.split_once('#').expect("Err: hex not found");
+    let direction = get_direction(&hex_direction[5..6]);
+    let number = i64::from_str_radix(&hex_direction[0..5], 16).expect("Err: hex not number");
+    Step { direction, number }
 }
 
-fn apply_step(i: i32, j: i32, step: &Step) -> Vec<Place> {
+fn apply_step(i: i64, j: i64, step: &Step) -> Vec<Place> {
     let Step { direction, number } = step;
 
     match direction {
@@ -60,31 +61,13 @@ fn apply_step(i: i32, j: i32, step: &Step) -> Vec<Place> {
     }
 }
 
-fn display(height: i32, width: i32, places: &Vec<Place>) {
-    let mut lines = vec![".".repeat(width as usize); height as usize];
-    for place in places {
-        let line = lines
-            .get_mut(place.i as usize)
-            .expect("Err: no line to update");
-
-        line.replace_range(place.j as usize..place.j as usize + 1, "X");
-    }
-
-    for line in lines {
-        println!("{line}");
-    }
-}
-
-fn process_input(lines: Vec<String>) -> i32 {
-    // println!("{:?}", lines);
-
-    let step = line_to_step(&lines[0]);
-
+fn process_input(lines: Vec<String>) -> i64 {
     let mut places = vec![Place { i: 0, j: 0 }];
 
     for line in lines.iter() {
         let Place { i, j, .. } = places.last().expect("Err: get place");
         let step = line_to_step(line);
+
         let mut new_places = apply_step(*i, *j, &step);
         places.append(&mut new_places);
     }
@@ -106,22 +89,15 @@ fn process_input(lines: Vec<String>) -> i32 {
         place.j += j_min.abs();
     });
 
-    // display(i_max + i_min.abs() + 1, j_max + j_min.abs() + 1, &places);
-
-    let area: i32 = places
+    let area: i64 = places
         .iter()
         .tuple_windows()
-        .map(|(place0, place1)| {
-            // println!("{:?}", place1);
-            (place0.i + place1.i) * (place0.j - place1.j)
-        })
-        .sum::<i32>()
+        .map(|(place0, place1)| (place0.i + place1.i) * (place0.j - place1.j))
+        .sum::<i64>()
         .abs()
         / 2;
 
-    let length = places.len() as i32;
-
-    // println!("\nlength {length} area {area}");
+    let length = places.len() as i64;
 
     area + (length / 2) + 1
 }
