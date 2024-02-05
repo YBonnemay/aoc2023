@@ -21,5 +21,6 @@ fn main() {
     // days::day14::run();
     // days::day15::run();
     // days::day16::run();
-    days::day17::run();
+    // days::day17::run();
+    days::day18::run();
 }
