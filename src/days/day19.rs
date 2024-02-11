@@ -1,92 +1,106 @@
 use crate::utils::input_process::input_to_lines;
-use itertools::Itertools;
 use regex::Regex;
-use std::cmp::PartialOrd;
 use std::collections::HashMap;
-
-const OK: char = 'A';
-const KO: char = 'R';
 
 #[derive(Debug)]
 struct Condition {
     variable: char,
-    operand: fn(&u64, &u64) -> bool,
+    operand_char: char,
     threshold: u64,
     next_name: String,
 }
 
-#[derive(Default, Debug)]
-struct Part {
-    x: u64,
-    m: u64,
-    a: u64,
-    s: u64,
-}
-
-impl Part {
-    fn set_var(&mut self, ch: char, threshold: u64) {
-        match ch {
+// Should macro these
+impl Condition {
+    fn update_ranges_not_met(&self, ranges: &mut Ranges) {
+        match self.variable {
             'x' => {
-                self.x = threshold;
+                if self.operand_char == '<' {
+                    ranges.x.0 = self.threshold.max(ranges.x.0)
+                } else {
+                    ranges.x.1 = self.threshold.min(ranges.x.1)
+                }
             }
             'm' => {
-                self.m = threshold;
+                if self.operand_char == '<' {
+                    ranges.m.0 = self.threshold.max(ranges.m.0)
+                } else {
+                    ranges.m.1 = self.threshold.min(ranges.m.1)
+                }
             }
             'a' => {
-                self.a = threshold;
+                if self.operand_char == '<' {
+                    ranges.a.0 = self.threshold.max(ranges.a.0)
+                } else {
+                    ranges.a.1 = self.threshold.min(ranges.a.1)
+                }
             }
             's' => {
-                self.s = threshold;
+                if self.operand_char == '<' {
+                    ranges.s.0 = self.threshold.max(ranges.s.0)
+                } else {
+                    ranges.s.1 = self.threshold.min(ranges.s.1)
+                }
             }
-            _ => {
-                println!("AA");
-            }
+            _ => {}
         }
     }
 
-    fn get_var(&self, ch: char) -> u64 {
-        match ch {
-            'x' => self.x,
-            'm' => self.m,
-            'a' => self.a,
-            's' => self.s,
-            _ => {
-                panic!("Err: unmanaged char {ch}");
+    fn update_ranges_met(&self, ranges: &mut Ranges) {
+        match self.variable {
+            'x' => {
+                if self.operand_char == '<' {
+                    ranges.x.1 = (self.threshold - 1).min(ranges.x.1)
+                } else {
+                    ranges.x.0 = (self.threshold + 1).max(ranges.x.0)
+                }
             }
+            'm' => {
+                if self.operand_char == '<' {
+                    ranges.m.1 = (self.threshold - 1).min(ranges.m.1)
+                } else {
+                    ranges.m.0 = (self.threshold + 1).max(ranges.m.0)
+                }
+            }
+            'a' => {
+                if self.operand_char == '<' {
+                    ranges.a.1 = (self.threshold - 1).min(ranges.a.1)
+                } else {
+                    ranges.a.0 = (self.threshold + 1).max(ranges.a.0)
+                }
+            }
+            's' => {
+                if self.operand_char == '<' {
+                    ranges.s.1 = (self.threshold - 1).min(ranges.s.1)
+                } else {
+                    ranges.s.0 = (self.threshold + 1).max(ranges.s.0)
+                }
+            }
+            _ => {}
         }
-    }
-
-    fn get_sum(&self) -> u64 {
-        self.x + self.m + self.a + self.s
     }
 }
 
-fn parse_parts(lines: &[String]) -> Vec<Part> {
-    let mut parts: Vec<Part> = vec![];
+#[derive(Debug)]
+struct Ranges {
+    x: (u64, u64),
+    m: (u64, u64),
+    a: (u64, u64),
+    s: (u64, u64),
+}
 
-    for line in lines {
-        let line = line[1..line.len() - 1].to_string();
-
-        let parts_string = line.split(',');
-        let mut part = Part::default();
-
-        for parts in parts_string {
-            let (variable, threshold) = parts.split_once('=').expect("Err: no equal sign");
-            part.set_var(
-                variable.chars().next().expect("Err: not a char"),
-                threshold.parse::<u64>().expect("Err: not an u64"),
-            )
-        }
-
-        parts.push(part);
+impl Ranges {
+    fn get_total(&self) -> u64 {
+        (self.x.1 - self.x.0 + 1)
+            * (self.m.1 - self.m.0 + 1)
+            * (self.a.1 - self.a.0 + 1)
+            * (self.s.1 - self.s.0 + 1)
     }
-
-    parts
 }
 
 fn parse_rules(lines: &[String]) -> HashMap<String, Vec<Condition>> {
     let mut rules: HashMap<String, Vec<Condition>> = HashMap::new();
-    // I still do not like regexps.
+    // I still do not like regexps, mind.
     let re: Regex = Regex::new(r"^([xmas])([<>])(\d+):(\w+)$").unwrap();
     for line in lines {
         let line = line[0..line.len() - 1].to_string();
@@ -96,13 +110,10 @@ fn parse_rules(lines: &[String]) -> HashMap<String, Vec<Condition>> {
             match re.captures(condition) {
                 Some(captures) => {
                     let (_, [variable, operand, threshold, next]) = captures.extract();
+                    let operand_char = operand.chars().next().expect("Err: op");
                     conditions.push(Condition {
                         variable: variable.chars().next().expect("Err: var"),
-                        operand: if operand.chars().next().expect("Err: op") == '<' {
-                            PartialOrd::lt
-                        } else {
-                            PartialOrd::gt
-                        },
+                        operand_char,
                         threshold: threshold.parse::<u64>().unwrap(),
                         next_name: next.to_string(),
                     });
@@ -110,7 +121,7 @@ fn parse_rules(lines: &[String]) -> HashMap<String, Vec<Condition>> {
                 None => {
                     conditions.push(Condition {
                         variable: '_',
-                        operand: std::cmp::PartialOrd::lt,
+                        operand_char: '<',
                         threshold: 0,
                         next_name: condition.to_string(),
                     });
@@ -123,63 +134,65 @@ fn parse_rules(lines: &[String]) -> HashMap<String, Vec<Condition>> {
     rules
 }
 
-fn get_next_name<'a>(part: &Part, condition: &'a Condition) -> Option<&'a String> {
-    let cond_var = condition.variable;
+fn process_rule(starting_point: (&str, usize), rules: &HashMap<String, Vec<Condition>>) -> Ranges {
+    let mut ranges = Ranges {
+        x: (1, 4000),
+        m: (1, 4000),
+        a: (1, 4000),
+        s: (1, 4000),
+    };
 
-    if cond_var == '_' {
-        return Some(&condition.next_name);
-    }
+    let mut track = vec![starting_point];
+    while let Some(name) = track.pop() {
+        let conditions = &rules[name.0];
+        (0..=name.1).for_each(|index| {
+            if index == name.1 {
+                conditions[index].update_ranges_met(&mut ranges);
+            } else {
+                conditions[index].update_ranges_not_met(&mut ranges);
+            }
+        });
 
-    let value = part.get_var(cond_var);
-    let have_to_name = condition.operand;
-    if have_to_name(&value, &condition.threshold) {
-        return Some(&condition.next_name);
-    }
-
-    None
-}
-
-fn process_lines(lines: Vec<String>) -> u64 {
-    let index = lines.iter().position(|line| line.is_empty()).unwrap();
-
-    let rules = lines[0..index].to_vec();
-    let parts = lines[{ index + 1 }..].to_vec();
-    let rules = parse_rules(&rules);
-    let parts = parse_parts(&parts);
-
-    let mut steps = parts
-        .iter()
-        .map(|part| (part, "in".to_string()))
-        .collect_vec();
-
-    let mut oks: Vec<u64> = vec![];
-
-    while let Some((part, name)) = steps.pop() {
-        let rules = &rules[&name];
-
-        for condition in rules {
-            if let Some(next_name) = get_next_name(part, condition) {
-                // println!("processing {next_name}");
-                match next_name.chars().next().expect("Err: no char in name") {
-                    OK => {
-                        oks.push(part.get_sum());
-                    }
-                    KO => {}
-                    _ => {
-                        steps.push((part, next_name.clone()));
-                    }
+        // Iterating like a caveman.
+        'outer: for (rule_name, rule_conditions) in rules.iter() {
+            for (i, rule_condition) in rule_conditions.iter().enumerate() {
+                if rule_condition.next_name == "in" {
+                    break 'outer;
                 }
-                break;
+
+                if rule_condition.next_name == name.0 {
+                    track.push((rule_name, i));
+                    break 'outer;
+                }
             }
         }
     }
-    oks.iter().sum()
+    ranges
+}
+
+fn process_lines(lines: &[String]) -> u64 {
+    let index = lines.iter().position(|line| line.is_empty()).unwrap();
+    let rules = lines[0..index].to_vec();
+    let rules = parse_rules(&rules);
+    let mut starting_points: Vec<(&str, usize)> = vec![];
+
+    for (name, conditions) in rules.iter() {
+        for (i, condition) in conditions.iter().enumerate() {
+            if condition.next_name == *"A" {
+                starting_points.push((name, i));
+            }
+        }
+    }
+
+    starting_points
+        .iter()
+        .map(|starting_point| process_rule(*starting_point, &rules).get_total())
+        .sum()
 }
 
 pub fn run() {
     let input = "./days/day19/input.txt";
     let lines = input_to_lines(input);
-    let result = process_lines(lines);
-    // let result = process_input(data);
+    let result = process_lines(&lines);
     println!("\n day19 done with result {result}.");
 }
