@@ -1,5 +1,6 @@
 use crate::utils::input_process::input_to_lines;
 use itertools::Itertools;
+use serde::de::IntoDeserializer;
 use std::collections::{HashMap, VecDeque};
 
 #[derive(PartialEq, Debug, Clone, Copy)]
@@ -74,9 +75,12 @@ impl Module {
     }
 }
 
-fn button_press(modules_destination: &mut HashMap<String, Module>) -> (u64, u64, u64) {
+fn button_press(
+    modules_destination: &mut HashMap<String, Module>,
+    multiples_map: &mut HashMap<String, u64>,
+    iteration: u64,
+) {
     let mut events: VecDeque<(String, Pulse, String)> = VecDeque::new();
-    let mut events_numbers: (u64, u64, u64) = (0, 0, 0);
 
     events.push_front((
         "broadcaster".to_string(),
@@ -85,26 +89,21 @@ fn button_press(modules_destination: &mut HashMap<String, Module>) -> (u64, u64,
     ));
 
     while let Some((name_from, pulse, name)) = events.pop_front() {
-        // println!("popping {name}");
-        // println!("{:?} -{:?}-> {:?}", name_from, pulse, name);
-
-        match pulse {
-            Pulse::Low => {
-                events_numbers.0 += 1;
-            }
-            Pulse::High => {
-                events_numbers.1 += 1;
+        if pulse == Pulse::High {
+            match name_from.as_str() {
+                // Eyeballed these ones
+                "mk" | "fp" | "xt" | "zc" => {
+                    let _ = multiples_map.try_insert(name_from.clone(), iteration);
+                }
+                _ => {}
             }
         }
 
         if let Some(module) = modules_destination.get_mut(&name) {
             let tt = &mut module.on_pulse(&name_from, pulse);
             events.append(tt);
-        } else if pulse == Pulse::Low {
-            events_numbers.2 += 1;
         };
     }
-    events_numbers
 }
 
 fn process_lines(lines: &Vec<String>) -> u64 {
@@ -167,17 +166,16 @@ fn process_lines(lines: &Vec<String>) -> u64 {
         },
     );
 
-    let mut result: (u64, u64) = (0, 0);
-    for _i in 1..=1000 {
-        let (low, high, rx) = button_press(&mut modules_destination);
-        result.0 += low;
-        result.1 += high;
-        if rx > 0 {
+    let mut multiples_map: HashMap<String, u64> = HashMap::new();
+
+    for i in 1..=100000 {
+        button_press(&mut modules_destination, &mut multiples_map, i);
+        if multiples_map.len() > 3 {
             break;
         }
     }
 
-    result.0 * result.1
+    multiples_map.values().product()
 }
 
 pub fn run() {
