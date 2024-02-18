@@ -1,6 +1,6 @@
 use crate::utils::input_process::{input_to_lines, line_to_ints};
 
-fn extrapolate_numbers_right(input: &[Vec<i64>]) -> i64 {
+pub fn extrapolate_numbers_right(input: &[Vec<i64>]) -> i64 {
     input
         .iter()
         .map(|item| item.last().expect("Err: no last element"))
@@ -14,7 +14,7 @@ fn extrapolate_numbers_left(input: &[Vec<i64>]) -> i64 {
     })
 }
 
-fn get_diff(input: &Vec<i64>) -> Vec<i64> {
+pub fn get_diff(input: &Vec<i64>) -> Vec<i64> {
     let len = input.len();
     let ends = &input[1..len];
     let starts = &input[0..len - 1];
@@ -25,7 +25,7 @@ fn get_diff(input: &Vec<i64>) -> Vec<i64> {
         .collect()
 }
 
-fn get_vectors(input: &[i64]) -> Vec<Vec<i64>> {
+pub fn get_vectors(input: &[i64]) -> Vec<Vec<i64>> {
     let mut vectors = Vec::new();
     let mut all_zeros = false;
     let mut current_vector = Vec::from(input);
