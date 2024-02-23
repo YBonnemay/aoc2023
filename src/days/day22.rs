@@ -172,6 +172,7 @@ fn find_disintegrable_part_1(bricks: Vec<Brick>) -> usize {
         ceilings[brick.z.1].push(brick);
     }
 
+    let supporting_bricks: Vec<Brick> = vec![];
     for i in 1..(floors.len()) {
         let bricks_above = floors.get(i).expect("Err: no floors");
         let bricks_below = ceilings.get_mut(i - 1).expect("Err: no floors");
