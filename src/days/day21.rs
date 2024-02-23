@@ -180,7 +180,6 @@ fn part_2(lines: &Vec<String>) -> i64 {
         datum_ints.remove(0);
     }
     let result = datum_ints.last().expect("Err: no last");
-    println!(" extra {:?}.", datum_ints.last().expect("Err: no last"));
     *result
 }
 
