@@ -1,5 +1,6 @@
 #![feature(get_many_mut)]
 #![feature(map_try_insert)]
+#![feature(iter_map_windows)]
 #[allow(unstable_name_collisions)]
 mod days;
 mod utils;

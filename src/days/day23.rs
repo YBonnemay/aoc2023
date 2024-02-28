@@ -1,6 +1,9 @@
 use crate::utils::input_process::input_to_lines;
-use core::fmt;
 use itertools::Itertools;
+use petgraph::algo::all_simple_paths;
+use petgraph::graphmap::UnGraphMap;
+
+const GOAL: (usize, usize) = (140, 139);
 
 #[derive(Debug, Eq, PartialEq, PartialOrd, Clone, Hash, Copy)]
 enum Direction {
@@ -17,7 +20,7 @@ enum PlaceId {
     Slope,
 }
 
-#[derive(Debug, PartialEq, Eq, Clone, Hash)]
+#[derive(Debug, PartialEq, Eq, Clone, Hash, Copy)]
 struct Place {
     i: usize,
     j: usize,
@@ -25,20 +28,9 @@ struct Place {
     direction: Direction,
 }
 
-impl fmt::Display for Place {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let ch = match self.id {
-            PlaceId::Path => ".".to_string(),
-            PlaceId::Forest => "#".to_string(),
-            PlaceId::Slope => match self.direction {
-                Direction::North => '?'.to_string(),
-                Direction::South => 'v'.to_string(),
-                Direction::East => '>'.to_string(),
-                Direction::West => '<'.to_string(),
-            },
-        };
-
-        write!(f, "{ch}")
+impl Place {
+    fn get_key(&self) -> usize {
+        self.i * 1000 + self.j
     }
 }
 
@@ -46,7 +38,8 @@ fn get_at_direction(
     current_place: &Place,
     direction: &Direction,
     map: &mut Map,
-) -> Option<(Place, Direction)> {
+    cost: usize,
+) -> Option<(Place, Direction, usize)> {
     let Place { mut i, mut j, .. } = current_place;
 
     match direction {
@@ -56,14 +49,12 @@ fn get_at_direction(
         Direction::South => {
             i += 1;
             if i >= map.height {
-                // println!("None :height check");
                 return None;
             }
         }
         Direction::East => {
             j += 1;
             if j >= map.width {
-                // println!("None : width check");
                 return None;
             }
         }
@@ -72,21 +63,13 @@ fn get_at_direction(
         }
     }
 
-    let place = map.places[i][j].clone();
+    let place = map.places[i][j];
 
-    match place.id {
-        PlaceId::Slope => {
-            if &place.direction != direction {
-                return None;
-            }
-        }
-        PlaceId::Forest => {
-            return None;
-        }
-        _ => {}
+    if let PlaceId::Forest = place.id {
+        return None;
     }
 
-    Some((place.clone(), *direction))
+    Some((place, *direction, cost + 1))
 }
 
 fn get_opposite(lhs: &Direction) -> Direction {
@@ -101,9 +84,9 @@ fn get_opposite(lhs: &Direction) -> Direction {
 fn get_successors(
     place_from: &Place,
     map: &mut Map,
-    step_count: usize,
     direction_from: Direction,
-) -> Vec<(Place, usize, Direction)> {
+    cost: usize,
+) -> Vec<(Place, Direction, usize)> {
     [
         Direction::North,
         Direction::South,
@@ -112,8 +95,7 @@ fn get_successors(
     ]
     .iter()
     .filter(|direction| get_opposite(direction) != direction_from)
-    .filter_map(|direction| get_at_direction(place_from, direction, map))
-    .map(|(place, coming_from)| (place, step_count + 1, coming_from))
+    .filter_map(|direction| get_at_direction(place_from, direction, map, cost))
     .collect_vec()
 }
 
@@ -148,26 +130,51 @@ struct Map {
     width: usize,
 }
 
-fn walk(map: &mut Map) -> usize {
+fn walk_reduce(map: &mut Map) -> usize {
     let places = map.places.clone();
-    let mut successors: Vec<(Place, usize, Direction)> =
-        vec![(places[0][1].clone(), 0, Direction::South)];
+    let start = places[0][1];
+    let end = places[GOAL.0][GOAL.1];
 
-    let mut walks: Vec<usize> = vec![];
+    let mut ungraph: UnGraphMap<usize, usize> = UnGraphMap::new();
+    ungraph.add_node(start.get_key());
+    ungraph.add_node(end.get_key());
 
-    while let Some((successor, cost, direction_from)) = successors.pop() {
-        let current_successors = get_successors(&successor, map, cost, direction_from);
+    let mut successors: Vec<(Place, Place, Direction, usize)> =
+        vec![(start, start, Direction::South, 0)];
 
-        if current_successors.is_empty() {
-            walks.push(cost);
+    // Build faster graph
+    while let Some((current_place, mut edge_start, direction_from, cost)) = successors.pop() {
+        let current_place_key = current_place.get_key();
+
+        let current_successors = get_successors(&current_place, map, direction_from, cost);
+        let mut reset_costs = false;
+        if current_successors.len() > 1 || current_place.get_key() == end.get_key() {
+            if ungraph.contains_edge(edge_start.get_key(), current_place_key) {
+                continue;
+            };
+            ungraph.add_edge(edge_start.get_key(), current_place_key, cost);
+            edge_start = current_place;
+            reset_costs = true;
         }
 
-        for (current_successor, cost, direction_from) in current_successors {
-            successors.push((current_successor, cost, direction_from));
+        for (current_successor, direction_from, cost) in current_successors {
+            let cost = if reset_costs { 1 } else { cost };
+            successors.push((current_successor, edge_start, direction_from, cost));
         }
     }
 
-    *walks.iter().max().expect("Err: no max")
+    // Use faster graph
+    let ways = all_simple_paths::<Vec<_>, _>(&ungraph, start.get_key(), end.get_key(), 0, None)
+        .collect::<Vec<_>>();
+
+    ways.iter()
+        .map(|path| {
+            path.iter()
+                .map_windows(|&[a, b]| ungraph.edge_weight(*a, *b).expect("Err: no edge"))
+                .sum::<usize>()
+        })
+        .max()
+        .expect("Err: no max")
 }
 
 fn process_input(inputs: Vec<String>) -> usize {
@@ -191,9 +198,10 @@ fn process_input(inputs: Vec<String>) -> usize {
         width,
     };
 
-    walk(&mut map)
+    walk_reduce(&mut map)
 }
 
+// .. lib again. Because it is a wheel I should reinvent again.
 pub fn run() {
     let input = "./days/day23/input.txt";
     let data = input_to_lines(input);
