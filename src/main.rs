@@ -1,6 +1,7 @@
 #![feature(get_many_mut)]
 #![feature(map_try_insert)]
 #![feature(iter_map_windows)]
+#![feature(half_open_range_patterns_in_slices)]
 #[allow(unstable_name_collisions)]
 mod days;
 mod utils;
@@ -28,5 +29,6 @@ fn main() {
     // days::day20::run();
     // days::day21::run();
     // days::day22::run();
-    days::day23::run();
+    // days::day23::run();
+    days::day24::run();
 }
