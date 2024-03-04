@@ -1,32 +1,134 @@
 use std::fmt;
+use std::ops::Add;
+use std::ops::Sub;
 
 use crate::utils::input_process::input_to_lines;
 use itertools::Itertools;
 
-// const AREA_MIN: f64 = 7.0;
-// const AREA_MAX: f64 = 27.0;
-
-const AREA_MIN: f64 = 200000000000000.0;
-const AREA_MAX: f64 = 400000000000000.0;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct Point {
-    px: f64,
-    py: f64,
-    pz: f64,
+    px: i128,
+    py: i128,
+    pz: i128,
 }
 
-#[derive(Debug, Clone)]
+impl Point {
+    fn sum(self) -> i128 {
+        self.px + self.py + self.pz
+    }
+}
+impl Sub for Point {
+    type Output = Point;
+
+    fn sub(self, other: Point) -> Point {
+        Point {
+            px: self.px - other.px,
+            py: self.py - other.py,
+            pz: self.pz - other.pz,
+        }
+    }
+}
+
+impl Add for Point {
+    type Output = Point;
+
+    fn add(self, other: Point) -> Point {
+        Point {
+            px: self.px + other.px,
+            py: self.py + other.py,
+            pz: self.pz + other.pz,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Vector {
-    vx: f64,
-    vy: f64,
-    vz: f64,
+    vx: i128,
+    vy: i128,
+    vz: i128,
 }
 
-#[derive(Debug, Clone)]
+impl Sub for Vector {
+    type Output = Vector;
+
+    fn sub(self, other: Vector) -> Vector {
+        Vector {
+            vx: self.vx - other.vx,
+            vy: self.vy - other.vy,
+            vz: self.vz - other.vz,
+        }
+    }
+}
+
+impl Add for Vector {
+    type Output = Vector;
+
+    fn add(self, other: Vector) -> Vector {
+        Vector {
+            vx: self.vx + other.vx,
+            vy: self.vy + other.vy,
+            vz: self.vz + other.vz,
+        }
+    }
+}
+
+fn gcd(x: i128, y: i128) -> i128 {
+    let mut x = x;
+    let mut y = y;
+    while y != 0 {
+        let t = y;
+        y = x % y;
+        x = t;
+    }
+    x
+}
+
+impl Vector {
+    fn cross_product(self, other: Point) -> Vector {
+        Vector {
+            vx: self.vy * other.pz - self.vz * other.py,
+            vy: self.vz * other.px - self.vx * other.pz,
+            vz: self.vx * other.py - self.vy * other.px,
+        }
+    }
+
+    fn cross_product_vector(self, other: Vector) -> Vector {
+        Vector {
+            vx: self.vy * other.vz - self.vz * other.vy,
+            vy: self.vz * other.vx - self.vx * other.vz,
+            vz: self.vx * other.vy - self.vy * other.vx,
+        }
+    }
+
+    fn int_normalize(self) -> Vector {
+        let divisor = gcd(gcd(self.vx, self.vy), self.vz);
+        Vector {
+            vx: self.vx / divisor,
+            vy: self.vy / divisor,
+            vz: self.vz / divisor,
+        }
+    }
+
+    fn sum(self) -> i128 {
+        self.vx + self.vy + self.vz
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
 struct Stone {
     point: Point,
     vector: Vector,
+}
+
+impl Sub for Stone {
+    type Output = Stone;
+
+    fn sub(self, other: Stone) -> Stone {
+        Stone {
+            point: self.point - other.point,
+            vector: self.vector - other.vector,
+        }
+    }
 }
 
 impl fmt::Display for Stone {
@@ -52,14 +154,15 @@ fn get_places(inputs: &[String]) -> Vec<Stone> {
             let [px, py, pz] = p
                 .trim()
                 .split(", ")
-                .map(|item| item.parse::<f64>().expect("Err: point not an f64"))
+                .map(|item| item.parse::<i128>().expect("Err: point not an i128"))
                 .collect_vec()[0..=2]
             else {
                 panic!("Err: places");
             };
+
             let [vx, vy, vz] = v
                 .split(", ")
-                .map(|item| item.trim().parse::<f64>().expect("Err: place not an f64"))
+                .map(|item| item.trim().parse::<i128>().expect("Err: place not an i128"))
                 .collect_vec()[0..=2]
             else {
                 panic!("Err: places");
@@ -73,90 +176,39 @@ fn get_places(inputs: &[String]) -> Vec<Stone> {
         .collect_vec()
 }
 
-fn compute_intersection(lhs: &Stone, rhs: &Stone) -> Option<Point> {
-    let p1 = &lhs.point;
-    let p2 = &rhs.point;
-    let n1 = &lhs.vector;
-    let n2 = &rhs.vector;
+fn sadly_brainy_solution_because_not_hunting_overflows(inputs: Vec<String>) -> i128 {
+    let stones = get_places(&inputs);
+    let stone_0 = stones.first().expect("Err: no first stone");
+    let stone_1 = stones.get(1).expect("Err: no first stone");
+    let stone_2 = stones.get(2).expect("Err: no first stone");
+    let stone_centered_1 = *stone_1 - *stone_0;
+    let stone_centered_2 = *stone_2 - *stone_0;
 
-    let dx = p2.px - p1.px;
-    let dy = p2.py - p1.py;
-    let det = n2.vx * n1.vy - n2.vy * n1.vx;
-    let u = (dy * n2.vx - dx * n2.vy) / det;
-    let v = (dy * n1.vx - dx * n1.vy) / det;
+    // using mainly solution found online
+    let p3 = stone_centered_1.point;
+    let p4 = stone_centered_2.point;
+    let v3 = stone_centered_1.vector;
+    let v4 = stone_centered_2.vector;
 
-    // println!(" {:} ", u);
-    // println!(" {:} ", v);
-    if u < 0.0 || v < 0.0 {
-        // println!("Past minus Hailstone A {:} ", lhs);
-        // println!("Past minus Hailstone B {:} ", rhs);
-        return None;
-    }
+    let q = v3.cross_product(p3).int_normalize();
+    let r = v4.cross_product(p4).int_normalize();
+    let s = q.cross_product_vector(r).int_normalize();
 
-    if u.is_nan() || v.is_nan() {
-        // println!("Past nan Hailstone A {:} ", lhs);
-        // println!("Past nan Hailstone B {:} ", rhs);
-        return None;
-    }
+    let t = (p3.py * s.vx - p3.px * s.vy) / (v3.vx * s.vy - v3.vy * s.vx);
+    let u = (p4.py * s.vx - p4.px * s.vy) / (v4.vx * s.vy - v4.vy * s.vx);
 
-    if u.is_infinite() || v.is_infinite() {
-        // println!("Never interact Hailstone A {:} ", lhs);
-        // println!("Never interact Hailstone B {:} ", rhs);
-        return None;
-    }
+    let a = stone_0.point.add(p3).sum();
+    let b = stone_0.point.add(p4).sum();
+    let c = v3.sub(v4).sum();
 
-    let px = p1.px + n1.vx * u;
-    let py = p1.py + n1.vy * u;
-    let pz = 0.0;
-
-    if px < AREA_MIN || px > AREA_MAX || py < AREA_MIN || py > AREA_MAX {
-        // println!("Out of area Hailstone A {:} ", lhs);
-        // println!("Out of area Hailstone B {:} ", rhs);
-        return None;
-    }
-
-    Some(Point { px, py, pz })
+    (u * a - t * b + u * t * c) / (u - t)
 }
 
-fn compute_interesections(inputs: Vec<Stone>) -> usize {
-    inputs
-        .clone()
-        .iter()
-        .combinations(2)
-        .filter_map(|combination| {
-            // if lhr == rhs {
-            // return None;
-            // }
-            if let [lhr, rhs, ..] = combination[0..2] {
-                match compute_intersection(lhr, rhs) {
-                    Some(point) => {
-                        // println!("Hailstone A {:} ", lhr);
-                        // println!("Hailstone B {:} ", rhs);
-                        // println!("intersection {:?} ", point);
-                        // println!();
-                        Some(point)
-                    }
-                    None => None,
-                }
-            } else {
-                panic!("Err: refutable panic");
-            }
-        })
-        .count()
-}
-
-fn process_input(inputs: Vec<String>) -> usize {
-    let places = get_places(&inputs);
-    compute_interesections(places)
-}
-
+// By hook or by crook
+// Should unify Point and Vector types.
 pub fn run() {
     let input = "./days/day24/input.txt";
-    // px py pz @ vx vy vz
     let data = input_to_lines(input);
-    let result = process_input(data);
+    let result = sadly_brainy_solution_because_not_hunting_overflows(data);
     println!("\n day24 done with result {result}.");
 }
-
-// NaN past
-// inf never intersect
